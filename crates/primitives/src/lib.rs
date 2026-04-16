@@ -1,2 +1,2 @@
 mod rpc;
-pub use rpc::RiseRpcTransactionReceipt;
+pub use rpc::{RiseRpcLog, RiseRpcTransactionReceipt};
