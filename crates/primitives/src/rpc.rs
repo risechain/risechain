@@ -4,7 +4,7 @@ use alloy_consensus::{
 use alloy_primitives::{Address, BlockHash, TxHash, TxKind};
 use alloy_rpc_types_eth::Log;
 use reth_optimism_primitives::{OpReceipt, OpTransactionSigned};
-use reth_primitives::Recovered;
+use reth_primitives::{LogData, Recovered};
 use reth_rpc_eth_types::utils::calculate_gas_used_and_next_log_index;
 
 /// RISE transaction receipt without OP L1 fee fields (always zero on RISE).
@@ -89,5 +89,90 @@ impl RiseRpcTransactionReceipt {
             contract_address,
             effective_gas_price: tx.effective_gas_price(meta.base_fee),
         }
+    }
+}
+
+/// RISE transaction log.
+///
+/// Unlike [`alloy_rpc_types_eth::Log`], RISE always knows `block_number`,
+/// `transaction_hash`, `transaction_index`, `log_index`, and `block_timestamp`
+/// by the time a log is surfaced.
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RiseRpcLog<T = LogData> {
+    /// Consensus log (address + topics + data).
+    #[serde(flatten)]
+    pub inner: alloy_primitives::Log<T>,
+    /// Block hash. `None` for pending / shred receipts.
+    pub block_hash: Option<BlockHash>,
+    #[serde(with = "alloy_serde::quantity")]
+    pub block_number: u64,
+    /// Block timestamp.
+    #[serde(with = "alloy_serde::quantity", default)]
+    pub block_timestamp: u64,
+    #[doc(alias = "tx_hash")]
+    pub transaction_hash: TxHash,
+    /// Index of the transaction in the block.
+    #[serde(with = "alloy_serde::quantity")]
+    #[doc(alias = "tx_index")]
+    pub transaction_index: u64,
+    /// Log index in the block.
+    #[serde(with = "alloy_serde::quantity")]
+    pub log_index: u64,
+    /// Whether this log was removed (always `false` for RISE).
+    #[serde(default)]
+    pub removed: bool,
+}
+
+impl<T> RiseRpcLog<T> {
+    /// Shortcut for `log.inner.address`.
+    pub const fn address(&self) -> alloy_primitives::Address {
+        self.inner.address
+    }
+
+    /// Shortcut for `log.inner.data`.
+    pub const fn data(&self) -> &T {
+        &self.inner.data
+    }
+
+    /// Consumes the log and returns the inner consensus log.
+    pub fn into_inner(self) -> alloy_primitives::Log<T> {
+        self.inner
+    }
+}
+
+impl<T> AsRef<alloy_primitives::Log<T>> for RiseRpcLog<T> {
+    fn as_ref(&self) -> &alloy_primitives::Log<T> {
+        &self.inner
+    }
+}
+
+impl<T> From<RiseRpcLog<T>> for alloy_primitives::Log<T> {
+    fn from(log: RiseRpcLog<T>) -> Self {
+        log.inner
+    }
+}
+
+impl RiseRpcLog {
+    /// Creates a collection of [`RiseLog`]s from consensus receipt logs,
+    /// mirroring [`alloy_rpc_types_eth::Log::collect_for_receipt`].
+    pub fn collect_for_receipt(
+        previous_log_count: usize,
+        meta: alloy_consensus::transaction::TransactionMeta,
+        logs: impl IntoIterator<Item = alloy_primitives::Log>,
+    ) -> Vec<Self> {
+        logs.into_iter()
+            .enumerate()
+            .map(|(tx_log_idx, log)| Self {
+                inner: log,
+                block_hash: Some(meta.block_hash),
+                block_number: meta.block_number,
+                block_timestamp: meta.timestamp,
+                transaction_hash: meta.tx_hash,
+                transaction_index: meta.index,
+                log_index: (previous_log_count + tx_log_idx) as u64,
+                removed: false,
+            })
+            .collect()
     }
 }
