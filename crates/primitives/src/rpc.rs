@@ -100,23 +100,21 @@ impl RiseRpcTransactionReceipt {
         let map_logs = |receipt: Receipt| Receipt {
             status: receipt.status,
             cumulative_gas_used: receipt.cumulative_gas_used,
-            logs: {
-                receipt
-                    .logs
-                    .into_iter()
-                    .enumerate()
-                    .map(|(tx_log_idx, log)| RiseRpcLog {
-                        inner: log,
-                        block_hash: Some(meta.block_hash),
-                        block_number: meta.block_number,
-                        block_timestamp: meta.timestamp,
-                        transaction_hash: meta.tx_hash,
-                        transaction_index: meta.index,
-                        log_index: (next_log_index + tx_log_idx) as u64,
-                        removed: false,
-                    })
-                    .collect()
-            },
+            logs: receipt
+                .logs
+                .into_iter()
+                .enumerate()
+                .map(|(tx_log_idx, log)| RiseRpcLog {
+                    inner: log,
+                    block_hash: Some(meta.block_hash),
+                    block_number: meta.block_number,
+                    block_timestamp: meta.timestamp,
+                    transaction_hash: meta.tx_hash,
+                    transaction_index: meta.index,
+                    log_index: (next_log_index + tx_log_idx) as u64,
+                    removed: false,
+                })
+                .collect(),
         };
 
         let logs_bloom = receipt.logs().iter().collect();
