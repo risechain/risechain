@@ -6,7 +6,6 @@ version = "0.1.0"
 [dependencies]
 alloy-consensus.workspace = true
 alloy-primitives.workspace = true
-alloy-rpc-types-eth.workspace = true
 alloy-serde.workspace = true
 
 reth-primitives.workspace = true

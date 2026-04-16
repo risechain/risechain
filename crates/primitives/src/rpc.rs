@@ -2,10 +2,43 @@ use alloy_consensus::{
     Receipt, ReceiptWithBloom, Transaction, TxReceipt, transaction::TransactionMeta,
 };
 use alloy_primitives::{Address, BlockHash, TxHash, TxKind};
-use alloy_rpc_types_eth::Log;
 use reth_optimism_primitives::{OpReceipt, OpTransactionSigned};
-use reth_primitives::Recovered;
+use reth_primitives::{LogData, Recovered};
 use reth_rpc_eth_types::utils::calculate_gas_used_and_next_log_index;
+
+/// RISE transaction log.
+///
+/// Fields like `block_number`, `transaction_index`, and `log_index` are concrete
+/// instead of `Option` as RISE always has them from pending to canonical receipts.
+///
+/// Reference shape:
+/// <https://github.com/alloy-rs/alloy/blob/3bcda2994f428acb94660f56db2e365f478c1651/crates/rpc-types-eth/src/log.rs#L10-L44>
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RiseRpcLog {
+    /// Consensus log object.
+    #[serde(flatten)]
+    pub inner: alloy_primitives::Log<LogData>,
+    /// Block hash. `None` for pending / shred receipts.
+    #[serde(default)]
+    pub block_hash: Option<BlockHash>,
+    #[serde(with = "alloy_serde::quantity")]
+    pub block_number: u64,
+    #[serde(with = "alloy_serde::quantity", default)]
+    /// Block timestamp.
+    pub block_timestamp: u64,
+    /// Transaction hash.
+    pub transaction_hash: TxHash,
+    /// Index of the transaction in the block.
+    #[serde(with = "alloy_serde::quantity")]
+    pub transaction_index: u64,
+    /// Log index in the block.
+    #[serde(with = "alloy_serde::quantity")]
+    pub log_index: u64,
+    /// Whether this log was removed (always `false` for RISE).
+    #[serde(default)]
+    pub removed: bool,
+}
 
 /// RISE transaction receipt without OP L1 fee fields (always zero on RISE).
 /// Several fields like `block_number` are concrete instead of `Option`, as
@@ -18,7 +51,7 @@ use reth_rpc_eth_types::utils::calculate_gas_used_and_next_log_index;
 pub struct RiseRpcTransactionReceipt {
     /// The consensus receipt.
     #[serde(flatten)]
-    pub inner: ReceiptWithBloom<OpReceipt<Log>>,
+    pub inner: ReceiptWithBloom<OpReceipt<RiseRpcLog>>,
     /// Transaction hash.
     pub transaction_hash: TxHash,
     /// Index within the block.
@@ -67,18 +100,37 @@ impl RiseRpcTransactionReceipt {
         let map_logs = |receipt: Receipt| Receipt {
             status: receipt.status,
             cumulative_gas_used: receipt.cumulative_gas_used,
-            logs: Log::collect_for_receipt(next_log_index, meta, receipt.logs),
+            logs: receipt
+                .logs
+                .into_iter()
+                .enumerate()
+                .map(|(tx_log_idx, log)| RiseRpcLog {
+                    inner: log,
+                    block_hash: Some(meta.block_hash),
+                    block_number: meta.block_number,
+                    block_timestamp: meta.timestamp,
+                    transaction_hash: meta.tx_hash,
+                    transaction_index: meta.index,
+                    log_index: (next_log_index + tx_log_idx) as u64,
+                    removed: false,
+                })
+                .collect(),
+        };
+
+        let logs_bloom = receipt.logs().iter().collect();
+        let receipt = match receipt {
+            OpReceipt::Legacy(receipt) => OpReceipt::Legacy(map_logs(receipt)),
+            OpReceipt::Eip2930(receipt) => OpReceipt::Eip2930(map_logs(receipt)),
+            OpReceipt::Eip1559(receipt) => OpReceipt::Eip1559(map_logs(receipt)),
+            OpReceipt::Eip7702(receipt) => OpReceipt::Eip7702(map_logs(receipt)),
+            OpReceipt::Deposit(receipt) => OpReceipt::Deposit(receipt.map_inner(map_logs)),
         };
 
         Self {
-            inner: match receipt {
-                OpReceipt::Legacy(receipt) => OpReceipt::Legacy(map_logs(receipt)),
-                OpReceipt::Eip2930(receipt) => OpReceipt::Eip2930(map_logs(receipt)),
-                OpReceipt::Eip1559(receipt) => OpReceipt::Eip1559(map_logs(receipt)),
-                OpReceipt::Eip7702(receipt) => OpReceipt::Eip7702(map_logs(receipt)),
-                OpReceipt::Deposit(receipt) => OpReceipt::Deposit(receipt.map_inner(map_logs)),
-            }
-            .into_with_bloom(),
+            inner: ReceiptWithBloom {
+                logs_bloom,
+                receipt,
+            },
             transaction_hash: meta.tx_hash,
             transaction_index: meta.index,
             block_hash: Some(meta.block_hash),
