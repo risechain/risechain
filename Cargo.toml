@@ -22,8 +22,8 @@ futures = "0.3.32"
 serde = "1.0.228"
 thiserror = "2.0.18"
 
-tokio = "1.51.0"
-tokio-util = { version = "0.7.4", features = ["codec"] }
+tokio = "1.52.2"
+tokio-util = { version = "0.7.18", features = ["codec"] }
 
 [patch.crates-io]
 # Reth still pins these packages from crates.io while OP crates depend on their local ones.

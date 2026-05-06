@@ -6,11 +6,13 @@
 use std::{path::Path, time::Duration};
 
 use alloy_primitives::{Address, B256, Bytes};
-use bincode::{Decode, Encode, config, decode_from_slice, encode_into_std_write};
+use bincode::{Decode, Encode, decode_from_slice, encode_into_std_write};
 use bytes::{BufMut, BytesMut};
 use futures::{SinkExt, StreamExt};
 use tokio::{net::UnixStream, time::timeout};
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
+
+const BINCODE_CONFIG: bincode::config::Configuration = bincode::config::standard();
 
 /// Compact transaction receipt for IPC clients.
 #[derive(Debug, Encode, Decode)]
@@ -62,7 +64,7 @@ pub enum RiseIpcResponse {
     Error(String),
 }
 
-/// Errors produced by the shared IPC client.
+/// Errors produced by the IPC client.
 #[derive(Debug, thiserror::Error)]
 pub enum RiseIpcClientError {
     /// Transport-level failure.
@@ -114,13 +116,8 @@ impl RiseIpcConnection {
 
     /// Encodes and sends a frame.
     pub async fn send<T: Encode>(&mut self, value: &T) -> Result<(), RiseIpcTransportError> {
-        encode_into_std_write(
-            value,
-            &mut (&mut self.send_buffer).writer(),
-            config::standard(),
-        )?;
-        self.framed.send(self.send_buffer.split().freeze()).await?;
-        Ok(())
+        encode_into_std_write(value, &mut (&mut self.send_buffer).writer(), BINCODE_CONFIG)?;
+        Ok(self.framed.send(self.send_buffer.split().freeze()).await?)
     }
 
     /// Reads the next frame and decodes it as `T`.
@@ -129,7 +126,7 @@ impl RiseIpcConnection {
             return Err(RiseIpcTransportError::Closed);
         };
         let frame = frame?;
-        let (value, _) = decode_from_slice(&frame, config::standard())?;
+        let (value, _) = decode_from_slice(&frame, BINCODE_CONFIG)?;
         Ok(value)
     }
 }
@@ -159,10 +156,12 @@ impl RiseIpcClient {
         &mut self,
         request: RiseIpcRequest,
     ) -> Result<RiseIpcResponse, RiseIpcClientError> {
-        self.conn.send(&request).await?;
-        let resp = timeout(self.ipc_timeout, self.conn.receive())
-            .await
-            .map_err(RiseIpcTransportError::from)??;
+        let resp = timeout(self.ipc_timeout, async {
+            self.conn.send(&request).await?;
+            self.conn.receive().await
+        })
+        .await
+        .map_err(RiseIpcTransportError::from)??;
         match resp {
             RiseIpcResponse::Error(err) => Err(RiseIpcClientError::Server(err)),
             resp => Ok(resp),
