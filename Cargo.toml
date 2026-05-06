@@ -16,7 +16,14 @@ reth-rpc-eth-types = { git = "https://github.com/paradigmxyz/reth.git", tag = "v
 
 reth-optimism-primitives = { git = "https://github.com/ethereum-optimism/optimism", tag = "op-reth/v1.11.5" }
 
+bincode = { version = "2.0.1", features = ["serde"] }
+bytes = "1.11.1"
+futures = "0.3.32"
 serde = "1.0.228"
+thiserror = "2.0.18"
+
+tokio = "1.51.0"
+tokio-util = { version = "0.7.4", features = ["codec"] }
 
 [patch.crates-io]
 # Reth still pins these packages from crates.io while OP crates depend on their local ones.
