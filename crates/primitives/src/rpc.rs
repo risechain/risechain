@@ -3,7 +3,7 @@ use alloy_consensus::{
 };
 use alloy_primitives::{Address, BlockHash, TxHash, TxKind};
 use reth_optimism_primitives::{OpReceipt, OpTransactionSigned};
-use reth_primitives::{LogData, Recovered};
+use reth_primitives_traits::{LogData, Recovered};
 use reth_rpc_eth_types::utils::calculate_gas_used_and_next_log_index;
 
 /// RISE transaction log.
@@ -123,6 +123,7 @@ impl RiseRpcTransactionReceipt {
             OpReceipt::Eip2930(receipt) => OpReceipt::Eip2930(map_logs(receipt)),
             OpReceipt::Eip1559(receipt) => OpReceipt::Eip1559(map_logs(receipt)),
             OpReceipt::Eip7702(receipt) => OpReceipt::Eip7702(map_logs(receipt)),
+            OpReceipt::PostExec(receipt) => OpReceipt::PostExec(map_logs(receipt)),
             OpReceipt::Deposit(receipt) => OpReceipt::Deposit(receipt.map_inner(map_logs)),
         };
 
