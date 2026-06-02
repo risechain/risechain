@@ -62,6 +62,10 @@ pub enum RiseIpcResponse {
     Receipt(RiseIpcReceipt),
 }
 
+/// Wire-level reply returned by the IPC server for each request: either a
+/// successful [`RiseIpcResponse`] or a server-side error message.
+pub type RiseIpcResult = Result<RiseIpcResponse, String>;
+
 /// Errors produced by the IPC client.
 #[derive(Debug, thiserror::Error)]
 pub enum RiseIpcClientError {
@@ -156,7 +160,7 @@ impl RiseIpcClient {
     ) -> Result<RiseIpcResponse, RiseIpcClientError> {
         timeout(self.ipc_timeout, async {
             self.conn.send(&request).await?;
-            self.conn.receive::<Result<_, String>>().await
+            self.conn.receive::<RiseIpcResult>().await
         })
         .await
         .map_err(RiseIpcTransportError::from)??
