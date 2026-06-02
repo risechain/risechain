@@ -51,7 +51,7 @@ pub enum RiseIpcRequest {
     SubmitRawTx(#[bincode(with_serde)] Bytes),
 }
 
-/// Response frames emitted over IPC.
+/// Successful response frames emitted over IPC.
 #[derive(Debug, Encode, Decode)]
 pub enum RiseIpcResponse {
     /// The current base fee.
@@ -60,9 +60,11 @@ pub enum RiseIpcResponse {
     PendingNonce(u64),
     /// The receipt for a successful transaction submission.
     Receipt(RiseIpcReceipt),
-    /// A server-side error returned instead of a successful response.
-    Error(String),
 }
+
+/// Wire-level reply returned by the IPC server for each request: either a
+/// successful [`RiseIpcResponse`] or a server-side error message.
+pub type RiseIpcResult = Result<RiseIpcResponse, String>;
 
 /// Errors produced by the IPC client.
 #[derive(Debug, thiserror::Error)]
@@ -156,16 +158,13 @@ impl RiseIpcClient {
         &mut self,
         request: RiseIpcRequest,
     ) -> Result<RiseIpcResponse, RiseIpcClientError> {
-        let resp = timeout(self.ipc_timeout, async {
+        timeout(self.ipc_timeout, async {
             self.conn.send(&request).await?;
-            self.conn.receive().await
+            self.conn.receive::<RiseIpcResult>().await
         })
         .await
-        .map_err(RiseIpcTransportError::from)??;
-        match resp {
-            RiseIpcResponse::Error(err) => Err(RiseIpcClientError::Server(err)),
-            resp => Ok(resp),
-        }
+        .map_err(RiseIpcTransportError::from)??
+        .map_err(RiseIpcClientError::Server)
     }
 
     /// Fetch the current base fee.
