@@ -1,9 +1,9 @@
 use alloy_consensus::{
     Receipt, ReceiptWithBloom, Transaction, TxReceipt, transaction::TransactionMeta,
 };
-use alloy_primitives::{Address, BlockHash, TxHash, TxKind};
+use alloy_primitives::{Address, BlockHash, LogData, TxHash, TxKind};
 use reth_optimism_primitives::{OpReceipt, OpTransactionSigned};
-use reth_primitives::{LogData, Recovered};
+use reth_primitives_traits::Recovered;
 use reth_rpc_eth_types::utils::calculate_gas_used_and_next_log_index;
 
 /// RISE transaction log.
@@ -124,6 +124,10 @@ impl RiseRpcTransactionReceipt {
             OpReceipt::Eip1559(receipt) => OpReceipt::Eip1559(map_logs(receipt)),
             OpReceipt::Eip7702(receipt) => OpReceipt::Eip7702(map_logs(receipt)),
             OpReceipt::Deposit(receipt) => OpReceipt::Deposit(receipt.map_inner(map_logs)),
+            // This is from an upcoming OP spec RISE won't adopt so it's basically dead code.
+            // Eventually, as we implement our own VM, we will also implement our own receipt
+            // types without any of these friction.
+            OpReceipt::PostExec(receipt) => OpReceipt::PostExec(map_logs(receipt)),
         };
 
         Self {
