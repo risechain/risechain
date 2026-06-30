@@ -11,10 +11,10 @@ alloy-primitives = "1.6.0"
 alloy-rpc-types-eth = "2.0.5"
 alloy-serde = "2.0.5"
 
-reth-primitives-traits = "0.3.1"
-reth-rpc-eth-types = { git = "https://github.com/paradigmxyz/reth.git", rev = "7680d6d8a931c0af4f4eed26e971596970238b54" }
+reth-primitives-traits = "0.4.1"
+reth-rpc-eth-types = { git = "https://github.com/paradigmxyz/reth.git", tag = "v2.3.0" }
 
-reth-optimism-primitives = { git = "https://github.com/ethereum-optimism/optimism", tag = "op-reth/v2.3.1", features = [
+reth-optimism-primitives = { git = "https://github.com/ethereum-optimism/optimism", tag = "op-reth/v2.3.3", features = [
   "serde",
 ] }
 
