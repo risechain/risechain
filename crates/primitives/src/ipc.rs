@@ -98,6 +98,9 @@ pub enum RiseIpcTransportError {
     /// Failed to decode an inbound frame.
     #[error("failed to decode IPC frame: {0}")]
     Decode(#[from] bincode::error::DecodeError),
+    /// The frame contained extra bytes after the decoded value.
+    #[error("IPC frame contains {0} trailing byte(s)")]
+    TrailingBytes(usize),
 }
 
 /// Framed Unix-socket connection for RISE IPC.
@@ -128,7 +131,10 @@ impl RiseIpcConnection {
             return Err(RiseIpcTransportError::Closed);
         };
         let frame = frame?;
-        let (value, _) = decode_from_slice(&frame, BINCODE_CONFIG)?;
+        let (value, consumed) = decode_from_slice(&frame, BINCODE_CONFIG)?;
+        if consumed != frame.len() {
+            return Err(RiseIpcTransportError::TrailingBytes(frame.len() - consumed));
+        }
         Ok(value)
     }
 }
@@ -192,5 +198,25 @@ impl RiseIpcClient {
             RiseIpcResponse::Receipt(receipt) => Ok(receipt),
             resp => Err(RiseIpcClientError::UnexpectedResponse(resp)),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bincode::encode_to_vec;
+
+    #[tokio::test]
+    async fn receive_rejects_trailing_bytes() {
+        let (client, server) = UnixStream::pair().unwrap();
+        let mut conn = RiseIpcConnection::new(server);
+
+        let mut frame = encode_to_vec(RiseIpcResponse::BaseFee(1), BINCODE_CONFIG).unwrap();
+        frame.push(0);
+        let mut framed = Framed::new(client, LengthDelimitedCodec::new());
+        framed.send(frame.into()).await.unwrap();
+
+        let err = conn.receive::<RiseIpcResponse>().await.unwrap_err();
+        assert!(matches!(err, RiseIpcTransportError::TrailingBytes(1)));
     }
 }
