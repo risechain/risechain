@@ -78,11 +78,40 @@ pub struct RiseRpcTransactionReceipt {
 }
 
 impl RiseRpcTransactionReceipt {
+    /// Builds the receipt of a transaction, given all receipts of its block.
     pub fn new(
         tx: &Recovered<OpTransactionSigned>,
         receipt: OpReceipt,
         meta: TransactionMeta,
         all_receipts: &[OpReceipt],
+    ) -> Self {
+        let (gas_used_before, next_log_index) =
+            calculate_gas_used_and_next_log_index(meta.index, all_receipts);
+        let gas_used = receipt
+            .cumulative_gas_used()
+            .saturating_sub(gas_used_before);
+
+        Self::new_with_gas_used_and_log_index(
+            tx.as_recovered_ref(),
+            receipt,
+            meta,
+            gas_used,
+            next_log_index,
+        )
+    }
+
+    /// Builds the receipt of a transaction, given the gas used by this transaction alone and
+    /// the block-wide index of its first log.
+    ///
+    /// [`Self::new`] derives both by scanning all receipts before the transaction in the block.
+    /// That is fine for one receipt but O(n²) for all receipts of a block, so callers building
+    /// a whole block should carry both as running totals and call this instead.
+    pub fn new_with_gas_used_and_log_index(
+        tx: Recovered<&OpTransactionSigned>,
+        receipt: OpReceipt,
+        meta: TransactionMeta,
+        gas_used: u64,
+        next_log_index: usize,
     ) -> Self {
         let from = tx.signer();
 
@@ -90,12 +119,6 @@ impl RiseRpcTransactionReceipt {
             TxKind::Create => (Some(from.create(tx.nonce())), None),
             TxKind::Call(address) => (None, Some(address)),
         };
-
-        let (gas_used_before, next_log_index) =
-            calculate_gas_used_and_next_log_index(meta.index, all_receipts);
-        let gas_used = receipt
-            .cumulative_gas_used()
-            .saturating_sub(gas_used_before);
 
         let map_logs = |receipt: Receipt| Receipt {
             status: receipt.status,
