@@ -85,7 +85,7 @@ impl RiseRpcTransactionReceipt {
         meta: TransactionMeta,
         all_receipts: &[OpReceipt],
     ) -> Self {
-        let (gas_used_before, next_log_index) =
+        let (gas_used_before, first_log_index) =
             calculate_gas_used_and_next_log_index(meta.index, all_receipts);
         let gas_used = receipt
             .cumulative_gas_used()
@@ -96,7 +96,7 @@ impl RiseRpcTransactionReceipt {
             receipt,
             meta,
             gas_used,
-            next_log_index,
+            first_log_index,
         )
     }
 
@@ -111,7 +111,7 @@ impl RiseRpcTransactionReceipt {
         receipt: OpReceipt,
         meta: TransactionMeta,
         gas_used: u64,
-        next_log_index: usize,
+        first_log_index: usize,
     ) -> Self {
         let from = tx.signer();
 
@@ -134,7 +134,7 @@ impl RiseRpcTransactionReceipt {
                     block_timestamp: meta.timestamp,
                     transaction_hash: meta.tx_hash,
                     transaction_index: meta.index,
-                    log_index: (next_log_index + tx_log_idx) as u64,
+                    log_index: (first_log_index + tx_log_idx) as u64,
                     removed: false,
                 })
                 .collect(),
