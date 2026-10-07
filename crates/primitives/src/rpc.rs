@@ -91,13 +91,7 @@ impl RiseRpcTransactionReceipt {
             .cumulative_gas_used()
             .saturating_sub(gas_used_before);
 
-        Self::new_with_gas_used_and_log_index(
-            tx,
-            receipt,
-            meta,
-            gas_used,
-            first_log_index,
-        )
+        Self::new_with_gas_used_and_log_index(tx, receipt, meta, gas_used, first_log_index)
     }
 
     /// Builds the receipt of a transaction, given the gas used by this transaction alone and
