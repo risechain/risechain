@@ -79,8 +79,8 @@ pub struct RiseRpcTransactionReceipt {
 
 impl RiseRpcTransactionReceipt {
     /// Builds the receipt of a transaction, given all receipts of its block.
-    pub fn new(
-        tx: &Recovered<OpTransactionSigned>,
+    pub fn new_with_block_receipts(
+        tx: Recovered<&OpTransactionSigned>,
         receipt: OpReceipt,
         meta: TransactionMeta,
         all_receipts: &[OpReceipt],
@@ -92,7 +92,7 @@ impl RiseRpcTransactionReceipt {
             .saturating_sub(gas_used_before);
 
         Self::new_with_gas_used_and_log_index(
-            tx.as_recovered_ref(),
+            tx,
             receipt,
             meta,
             gas_used,
